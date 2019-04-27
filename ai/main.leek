@@ -1,0 +1,1703 @@
+/**
+ ** IA Pilow © 2015
+ ** Version 1.01
+ **/
+if (getTurn() == 1) {
+	say('Bonjour !');
+}
+
+debug("Salut :)");
+ 
+// Paramètres
+global ALLY_DIST = 5;
+global ENEMY_DIST = 8;
+global USE_GRADIENT = false;
+
+global EXTENDED_DEBUG = false;
+
+global ROX_DISTANCE = 15;
+global SUPPORT_AREA = 4;
+
+// Constantes
+global ITEM_TYPE_GOOD = 1;
+global ITEM_NEUTRAL = 0;
+global ITEM_TYPE_BAD = -1;
+
+global ROLE_ATTACK = 0;
+global ROLE_SUPPORT = 1;
+
+global ROLES_NAMES = [ 
+	ROLE_ATTACK: "Rox", 
+	ROLE_SUPPORT: "Support"
+];
+
+global ROLES_DISTANCES = [
+ROLE_ATTACK: [12, 5], // Distance, Area width
+ROLE_SUPPORT: [16, 4]];
+
+global AREA_MASKS = [
+AREA_POINT: [
+	[0, 0, 1]
+], AREA_CIRCLE_1: [
+	[0, 0, 1],
+	[-1, 0, 0.5],
+	[1, 0, 0.5],
+	[0, 1, 0.5],
+	[0, -1, 0.5]
+], AREA_CIRCLE_2: [
+	[0, 0, 1],
+	[-1, 0, 0.75],
+	[1, 0, 0.75],
+	[0, 1, 0.75],
+	[0, -1, 0.75],
+	[-2, 0, 0.5],
+	[-1, -1, 0.5],
+	[-1, 1, 0.5],
+	[2, 0, 0.5],
+	[1, 1, 0.5],
+	[1, -1, 0.5],
+	[0, 2, 0.5],
+	[0, -2, 0.5]
+], AREA_CIRCLE_3: [
+	[0, 0, 1]
+], AREA_LASER_LINE: [
+	[0, 0, 1]
+]];
+
+// Globales
+global __itemTypes = [];
+global __instrus = [];
+global __instru;
+global __reachCache = [];
+
+global __powers;
+                                                                                    
+global COLOR_PINK = getColor(255, 0, 127);
+
+function _main() {
+
+	COLOR_PINK = 2;
+
+	__instru = 0;
+	__reachCache = [];
+
+	//debug("⬤ Role ⬤");
+	var role = _getRole();
+	//debug("Role : " + ROLES_NAMES[role]);
+
+	//debug("⬤ Priorités ⬤");
+	var priorities = _analyse();
+	//debugLeekArray("Powers", __powers);
+	//debugLeekArray("Priorities", priorities);
+	_instru();
+
+	//debug("⬤ Items utilisables ⬤");
+	var items = _getItems();
+	//debug("[" + join(arrayMap(items, function(item) {
+	//	return _getName(item[0]) + " (" + item[0] + ")";
+	//}), ", ") + "]");
+	_instru();
+
+	//debug("⬤ Theorical item powers ⬤");
+	var itemsPowers = [];
+	for (var item in items) {
+		itemsPowers[item[0]] = _getItemTheoricalPower(item[0]);
+	}
+	items = arraySort(items, function(a, b) {
+		return itemsPowers[a] - itemsPowers[b];
+	});
+	//debug("[" + join(arrayMap(items, function(item) {
+	//	return _getName(item[0]) + " (" + item[0] + ")";
+	//}), ", ") + "]");
+	_instru();
+
+	//debug("⬤ Cases accessibles ⬤");
+	var cells = _getReachableCells(getCell(), getMP());
+	//debug(cells);
+	_instru();
+	
+	summonMetallic();
+
+	//debug("⬤ Combinaisons Tree ⬤");
+	//debug("TP : " + getTP());
+	//debug("Tree : ");
+	var tree = _getCombosTree(items);
+	//_debugCombosTree(tree);
+	_instru();
+
+	//debug("⬤ Simulation ⬤");
+	var combos = _simulateCombos(tree, priorities);
+	//debug(count(combos) + " combos générés.");
+
+	combos = arraySort(combos, function(a, b) {
+		return b[0] - a[0];
+	});
+	_instru();
+
+	//debug("⬤ Best combos ⬤");
+	var bests = subArray(combos, 0, min(20, count(combos) - 1));
+
+	for (var key: var combo in bests) {
+
+		var bestCell = _getBestCellToGoOn(cells, combo[2], combo[3], role);
+
+		bests[key][0] += bestCell['score'];
+		bests[key][2] = bestCell['cell'];
+	}
+	_instru();
+	bests = arraySort(bests, function(a, b) {
+		return b[0] - a[0];
+	});
+	_instru();
+	for (var i = 0; i < min(5, count(bests)); ++i) {
+		//debug(_comboToString(bests[i]));
+	}
+	_instru();
+
+	_execute(bests[0]);
+	_instru();
+	
+	if (getWeapon() != WEAPON_M_LASER) {
+		setWeapon(WEAPON_M_LASER);
+	}
+
+	push(__instrus, getOperations());
+	//debug(__instrus);
+}
+
+function _execute(combo) {
+
+	//debug("Execute combo : " + _comboToString(combo));
+
+	var actions = combo[1];
+	var finishCell = combo[2];
+
+	for (var action in actions) {
+
+		var item = action[0];
+		var onCell = action[1];
+		var fromCell = action[2];
+
+		//debug("Use " + _getName(item) + " on cell " + onCell + " from " + fromCell);
+
+		moveTowardCell(fromCell);
+		if (isWeapon(item) and getWeapon() != item) setWeapon(item);
+		_useOnCell(item, onCell);
+	}
+
+	//debug("Move toward final cell : " + finishCell);
+	moveTowardCell(finishCell);
+}
+
+function summonMetallic() {
+	if (count(getAliveAllies()) > 1) return;
+	var pos = getCell();
+	var cells = [pos + 18, pos - 18, pos + 17, pos - 17];
+	var cell_summon = 0;
+	for (var cell in cells) {
+		if (isEmptyCell(cell)) {
+			cell_summon = cell; break;
+		}
+	}
+	//debug("cell: " + cell_summon);
+	summon(CHIP_METALLIC_BULB, cell_summon, function() {
+		var allies = getAliveAllies();
+		for (var ally in allies) {
+			if (isSummon(ally)) continue;
+			var cell = getCellToUseChip(CHIP_ARMOR, ally);
+			moveTowardCell(cell);
+			useChip(CHIP_WALL, ally);
+			useChip(CHIP_ARMOR, ally);
+			useChip(CHIP_SHIELD, ally);
+		}
+	});
+}
+
+/*
+ * Regarde pour un tableau de cellules laquelle est la mieux pour se déplacer
+ */
+function _getBestCellToGoOn(cells, currentCell, mp, role) {
+
+	var enemies = [];
+	for (var enemy in getAliveEnemies()) {
+
+		var maxPO = 0;
+		for (var item in getWeapons(enemy) + getChips(enemy)) {
+			if (_getMaxRange(item) > maxPO) maxPO = _getMaxRange(item);
+		}
+		push(enemies, ['cell': getCell(enemy), 'force': getForce(enemy), 'max_po': maxPO]);
+	}
+
+	var allies = getAliveAllies();
+	removeElement(allies, getLeek());
+
+	var best = null;
+	var bestScore = -99999999999;
+
+	var scores = [];
+
+	for (var cell in cells) {
+
+		if (getPathLength(cell, currentCell) > mp) continue;
+
+		var score = 0;
+
+		// Proximité d'un ennemi
+		for (var enemy in enemies) {
+
+			var d = getCellDistance(cell, enemy['cell']);
+
+			if (d <= enemy['max_po']) {
+				score -= enemy['force'] / 2;
+			}
+		}
+
+		// Proximité d'un allié
+		for (var ally in allies) {
+
+			var distance = getCellDistance(cell, getCell(ally));
+
+			score -= abs(distance - 6) * 10;
+		}
+
+		// Role 
+		if (role == ROLE_SUPPORT) {
+			var roxAlly = _min(_filter(allies, function(ally) {
+				return getForce(ally) > getWisdom(ally);
+			}), function(ally) {
+				return getCellDistance(cell, getCell(ally));
+			});
+			score -= abs(getCellDistance(getCell(roxAlly), cell) - 6) * 10;
+
+		} else if (role == ROLE_ATTACK) {
+
+			var healAlly = _min(_filter(allies, function(ally) {
+				return getForce(ally) < getWisdom(ally);
+			}), function(ally) {
+				return getCellDistance(cell, getCell(ally));
+			});
+			score -= abs(getCellDistance(getCell(healAlly), cell) - 6) * 10;
+
+			score -= abs(getCellDistance(getCell(getNearestEnemy()), cell) - 10) * 10;
+		}
+
+		if (score > bestScore) {
+			bestScore = score;
+			best = cell;
+		}
+
+		scores[cell] = score;
+	}
+
+	return ['cell': best, 'score': bestScore];
+}
+
+function _simulateCombos(tree, @priorities) {
+
+	var combos = [];
+	var n = 0;
+
+	var simulate;
+	simulate = function(@branches, combo, cell, mp, simulation) {
+
+		if (getOperations() > OPERATIONS_LIMIT * 0.3) return;
+
+		for (var branch in branches) {
+		
+			for (var leek in _getLeeks()) {
+				simulation[leek] = ['life': getLife(leek), 'max_life': getTotalLife(leek), 'abs_shield': getAbsoluteShield(leek), 'rel_shield': getRelativeShield(leek)];
+			}
+
+			var item = branch[0][0];
+			var type = _getItemType(item);
+
+			_moreDebug("Simulate item " + _getName(item));
+
+			for (var leek: var s in simulation) {
+
+				n++;
+
+				var mul = isAlly(leek) ? 1 : -1;
+
+				if (mul * type == -1) {
+					_moreDebug("mauvaise cible");
+					continue;
+				}
+
+				var cellToUse = _getCellToUse(item, leek);
+				if (cellToUse == -1) {
+					_moreDebug("aucune cell pour utiliser");
+					continue;
+				}
+
+				var pathLength = getPathLength(cell, cellToUse);
+				if (pathLength > mp) {
+					_moreDebug("impossible d'y aller");
+					continue;
+				}
+
+				if (leek == getLeek() and cellToUse != cell) continue; // Impossible d'utiliser une puce sur moi depuis une case ou je suis pas.
+				
+				var effect = _getItemEffectOnLeek(item, leek, 1, simulation[leek]);
+				if (effect == 0) continue;
+
+				if (simulation[leek]['life'] <= 0) {
+					effect -= 1000;
+					removeKey(simulation, leek);
+				}
+
+				effect *= mul * priorities[leek];
+				effect = round(effect);
+
+				if (effect > 0) {
+				
+					_moreDebug(_getName(item) + " ok : " + effect);
+
+					var newCombo = combo;
+
+					newCombo[0] += effect;
+					newCombo[2] = cellToUse;
+					newCombo[3] -= pathLength;
+					push(newCombo[1], [item, getCell(leek), cellToUse, effect]);
+					push(combos, newCombo);
+
+					simulate(branch[1], newCombo, cellToUse, mp - pathLength, simulation);
+
+				} else {
+					_moreDebug("l'effet est négatif : " + effect);
+				}
+			}
+		}
+	};
+
+	var simulation = [];
+
+	for (var leek in _getLeeks()) {
+		simulation[leek] = ['life': getLife(leek), 'max_life': getTotalLife(leek), 'abs_shield': getAbsoluteShield(leek), 'rel_shield': getRelativeShield(leek)];
+	}
+
+	push(combos, [0, [], getCell(), getMP()]);
+
+	simulate(tree[1], [0, [], getCell(), getMP()], getCell(), getMP(), simulation);
+
+	//debug(n + " targets tested.");
+
+	return combos;
+}
+
+function _getRole() {
+	if (getStrength() >= getWisdom()) return ROLE_ATTACK;
+	return ROLE_SUPPORT;
+}
+
+function _getBestWeapon() {
+	return getWeapons()[randInt(0, count(getWeapons()))];
+}
+
+/* 
+ * Renvoie le meilleur combo parmi la liste proposée, selon les priorités des poireaux
+ *
+ * @param combos : la liste des combos
+ * @param priorities : le tableau des priorités
+ * @return combo : le meilleur combo
+ */
+function _getBestCombo(@combos, @priorities, role, idealCell, @stashes) {
+
+	var actions = [];
+	var maxi = -999;
+	var maxAction = null;
+
+	// On regarde tous les combos
+	for (var i: var combo in combos) {
+
+		//debug("♠ Combo " + (i + 1) + " / " + count(combos) + " : " + _comboToString(combo));
+
+		if (getOperations() > OPERATIONS_LIMIT * 0.80) {
+			debugW("On arrête !");
+			break;
+		}
+
+		// On les permute
+		for (var perm in _permutations(combo)) {
+
+			// On calcule la meilleure suite d'action avec cet ordre d'item
+			var bestAction = _simulate(perm, priorities, role, idealCell, stashes);
+
+			if (bestAction != null) {
+
+				var action = bestAction[0];
+				var score = bestAction[1];
+				var lastCell = bestAction[2];
+
+				// On ajoute cette action dans les actions
+				if (score > maxi) {
+					maxAction = [round(score), action, lastCell];
+					maxi = score;
+				}
+			}
+		}
+	}
+
+	return maxAction;
+}
+
+function _getIdealCellToGo(role) {
+
+	if (count(_getOtherAllies()) == 0) {
+
+		return _min(_circle(getNearestEnemy(), 10), function(cell) {
+			return getCellDistance(getCell(), cell);
+		});
+	}
+
+	if (role == ROLE_SUPPORT) {
+
+		var damageBary = _barycentre(_filter(_getOtherAllies(), function(ally) {
+			return getForce(ally) > getWisdom(ally);
+		}));
+		var enemyDamageBary = _barycentre(_filter(getAliveEnemies(), function(enemy) {
+			return getForce(enemy) > getWisdom(enemy);
+		}));
+
+		// L'idéal est d'être a ALLY_DIST des alliés dégâts et à la plus grande distance possible des ennemis dégâts
+		return _max(_circle(damageBary, ALLY_DIST), function(c) {
+			return getCellDistance(enemyDamageBary, c);
+		});
+
+	} else if (role == ROLE_ATTACK) {
+
+		var enemyBary = _barycentre(getAliveEnemies());
+
+		var healBary = _barycentre(_filter(_getOtherAllies(), function(ally) {
+			return getForce(ally) < getWisdom(ally);
+		}));
+
+		// L'idéal est de se mettre à ALLY_DIST des alliés support et à la plus petite distance des ennemis en général
+		return _min(_circle(healBary, ALLY_DIST), function(c) {
+			return getCellDistance(enemyBary, c);
+		});
+	}
+}
+
+function _simulate(@items, @priorities, role, idealCell, @stashes) {
+
+	var combo = [];
+	for (var i in items) push(combo, _getName(i[0]) + " " + i[1]);
+
+	var action = [];
+	var score = 0;
+
+	var mp = getMP();
+	var cell = getCell();
+
+	// On regarde chaque item...
+	for (var i: var item in items) {
+
+		var itemID = item[0];
+		var itemType = _getItemType(itemID);
+
+		var targetCells = [];
+		var area = _getArea(itemID);
+
+		// Sur chaque leek
+		for (var leekID: var leekPrio in priorities) {
+			push(targetCells, getCell(leekID));
+		}
+
+		var bestPathLength = null;
+		var bestCell = null;
+		var bestEffect = 0;
+		var bestTarget = null;
+
+		// Pour toutes les cellules cibles
+		for (var targetCell in targetCells) {
+
+			// On calcule la nouvelle case ou l'on doit aller pour utiliser l'item.
+			var newCell = targetCell != getCell() ? _getCellToUseOnCell(itemID, targetCell) : cell;
+			if (newCell == -1) continue; // On ne peut pas utiliser cet item sur cette case
+
+			// On regarde le chemin pour y aller
+			var pathLength = getPathLength(cell, newCell);
+			if (pathLength > mp) continue; // C'est trop loin
+			var itemEffect = 0;
+
+			// On récupère les cibles
+			for (var target in _getTargets(itemID, targetCell)) {
+
+				// Si c'est un allié les effets appliqués sont inversés
+				var mul = isAlly(target) ? 1 : -1;
+
+				// On calcule l'effet que ça va faire
+				var infos = ['life': getLife(target), 'max_life': getTotalLife(target), 'rel_shield': getRelativeShield(target), 'abs_shield': getAbsoluteShield(target)];
+
+				itemEffect += mul * priorities[target] * _getItemEffectOnLeek(itemID, target, 1, infos);
+			}
+
+			// On a trouvé la meilleure cible sur laquelle utiliser cet item
+			if (itemEffect > bestEffect) {
+				bestEffect = itemEffect;
+				bestPathLength = pathLength;
+				bestCell = newCell;
+				bestTarget = targetCell;
+			}
+		}
+
+		// On ajoute l'item dans le tableau de l'action
+		if (bestCell != null) {
+			score += bestEffect;
+			push(action, [item[0], bestTarget, bestCell]);
+			cell = bestCell;
+			mp -= bestPathLength;
+		}
+	}
+
+	// Position de fin
+	var bestCell = null;
+
+	if (idealCell != null and getCellDistance(cell, idealCell) > 10) {
+
+		bestCell = idealCell;
+
+	} else {
+
+		var reachable = _getReachableCells(cell, mp);
+		var best = -9999;
+
+		var damageEnemy = _getNearestEnemy(cell, function(e) {
+			return getForce(e) >= getWisdom(e);
+		});
+		var danger = damageEnemy != null ? getCellDistance(cell, damageEnemy) < 12 : false;
+
+		for (var c in reachable) {
+
+			var s = 1000; // Score de base
+
+			// Distance avec la cellule idéale
+			if (idealCell != null) {
+				s -= getCellDistance(idealCell, c);
+				if (getCellDistance(idealCell, c) > 5) s -= 800;
+			}
+
+			// Cachette ?
+			//if (stashes[c] != null and danger) s += stashes[c] * 300;
+
+			// Loin de tout allié ?
+			if (danger) {
+				for (var a in _getOtherAllies()) {
+					var d = getCellDistance(getCell(a), c);
+					if (d < 4) s -= (5 - d) * 800;
+				}
+			}
+
+			if (s > best) {
+				best = s;
+				bestCell = c;
+			}
+		}
+
+		score += best;
+	}
+
+	return [action, score, bestCell];
+}
+
+function _getStashes(cell, mp) {
+
+	var reachable = _getReachableCells(cell, mp);
+
+	var nearObstacle = [];
+	for (var c in reachable) {
+		var obstacles = _getObstaclesAround(c);
+		if (count(obstacles) > 0) nearObstacle[c] = obstacles;
+	}
+
+	var damageEnemies = _filter(getAliveEnemies(), function(enemy) {
+		return getForce(enemy) > getWisdom(enemy);
+	});
+
+	var stashes = [];
+	for (var c: var obstacles in nearObstacle) {
+		var score = count(damageEnemies);
+		for (var e in damageEnemies) {
+			var ec = getCell(e);
+			var emp = min(5, getMP(e));
+			var canTouch = true;
+			for (var o in obstacles) {
+				if (not _canHaveLoS(c, o, ec, emp)) {
+					canTouch = false;
+					break;
+				}
+			}
+			if (canTouch) score--;
+		}
+		if (score > 0) stashes[c] = score;
+	}
+	return stashes;
+}
+
+function _getNearestEnemy(cell, f) {
+	var enemies = _filter(getAliveEnemies(), f);
+	return _min(enemies, function(e) {
+		return getCellDistance(cell, getCell(e));
+	});
+}
+
+/*
+ * target et obstacle doivent être collés
+ */
+function _canHaveLoS(target, obstacle, cell, mp) {
+
+	var tx = getCellX(target);
+	var ty = getCellY(target);
+	var ox = getCellX(obstacle);
+	var oy = getCellY(obstacle);
+	var cx = getCellX(cell);
+	var cy = getCellY(cell);
+
+	var dx = ox - tx;
+	var dy = oy - ty;
+
+	var tdx = cx - tx;
+	var tdy = cy - ty;
+
+	// Cas ou c'est sur que c'est mort
+	if (signum(dx * tdx) == -1 or signum(dy * tdy) == -1) return true;
+
+	if (dx != 0) {
+		var d = abs(tx - cx) - abs(ty - cy);
+		var r = d - mp <= 0;
+		return r;
+	} else {
+		var d = abs(ty - cy) - abs(tx - cx);
+		var r = d - mp <= 0;
+		return r;
+	}
+}
+
+function _getObstaclesAround(cell) {
+
+	var obstacles = [];
+
+	var c1 = cell + 17;
+	if (not isEmptyCell(c1) and cell % 35 != 0 and cell < 595) push(obstacles, c1);
+
+	var c2 = cell + 18;
+	if (not isEmptyCell(c2) and cell % 35 != 17 and cell < 595) push(obstacles, c2);
+
+	var c3 = cell - 17;
+	if (not isEmptyCell(c3) and cell % 35 != 17 and cell > 17) push(obstacles, c3);
+
+	var c4 = cell - 18;
+	if (not isEmptyCell(c4) and cell % 35 != 0 and cell > 17) push(obstacles, c4);
+
+	return obstacles;
+}
+
+function _nearestCell(cells, from) {
+	return _min(cells, function(cell) {
+		return getCellDistance(cell, from);
+	});
+}
+
+function _barycentre(leeks) {
+	var accX = 0;
+	var accY = 0;
+	var powerSum = 0;
+	for (var leek in leeks) {
+		var cell = getCell(leek);
+		accX += getCellX(cell) * __powers[leek];
+		accY += getCellY(cell) * __powers[leek];
+		powerSum += __powers[leek];
+	}
+	powerSum = max(1, powerSum);
+	return getCellFromXY(accX / powerSum, accY / powerSum);
+}
+
+function _circle(center, radius) {
+	var circle = [];
+	var last = null;
+	var cx = getCellX(center);
+	var cy = getCellY(center);
+	for (var angle = 0; angle < 2 * PI; angle += 1.0 / radius) {
+		var x = round(cx + cos(angle) * radius);
+		var y = round(cy + sin(angle) * radius);
+		var cell = getCellFromXY(x, y);
+		if (last != cell and cell != null) push(circle, cell);
+	}
+	return circle;
+}
+
+function _opposite(center, cell, distance) {
+
+	var cx = getCellX(center);
+	var cy = getCellY(center);
+	var x = getCellX(cell);
+	var y = getCellY(cell);
+
+	var d = getDistance(center, cell);
+	var vx = (cx - x) / d;
+	var vy = (cy - y) / d;
+
+	return getCellFromXY(cx + vx * distance, cy + vy * distance);
+}
+
+function _min(@array, f) {
+	var mini = 999999999;
+	var mine = null;
+	for (var e in array) {
+		var v = f(e);
+		if (v < mini) {
+			mini = v;
+			mine = e;
+		}
+	}
+	return mine;
+}
+
+function _max(@array, f) {
+	var mini = -999999999;
+	var mine = null;
+	for (var e in array) {
+		var v = f(e);
+		if (v > mini) {
+			mini = v;
+			mine = e;
+		}
+	}
+	return mine;
+}
+
+function _minKey(@array) {
+	var mini = 999999999;
+	var mine = null;
+	for (var k: var e in array) {
+		if (e < mini) {
+			mini = e;
+			mine = k;
+		}
+	}
+	return mine;
+}
+
+function _maxKey(@array) {
+	var mini = -999999999;
+	var mine = null;
+	for (var k: var e in array) {
+		if (e > mini) {
+			mini = e;
+			mine = k;
+		}
+	}
+	return mine;
+}
+
+function _filter(@array, f) {
+	var r = [];
+	for (var e in array) if (f(e)) push(r, e);
+	return r;
+}
+
+function _getOtherAllies() {
+	var allies = getAliveAllies();
+	removeElement(allies, getLeek());
+	return allies;
+}
+
+function _getTargets(item, cell) {
+	return isWeapon(item) ? getWeaponTargets(item, cell) : getChipTargets(item, cell);
+}
+
+function _getEffetiveArea(item, cell) {
+	return isWeapon(item) ? getWeaponEffectiveArea(item, cell) : getChipEffectiveArea(item, cell);
+}
+
+function _getArea(item) {
+	return isWeapon(item) ? getWeaponArea(item) : getChipArea(item);
+}
+
+/*
+ * Renvoie l'ensemble des permutations du tableau array
+ * Exemple : [1,2,3] => [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
+ */
+function _permutations(array) {
+
+	if (array == []) return [[]];
+
+	var perms = [];
+
+	for (var e in array) {
+
+		var rem = [];
+		pushAll(rem, array);
+		removeElement(rem, e);
+
+		for (var p in _permutations(rem)) {
+			var perm = [e];
+			pushAll(perm, p);
+			if (!inArray(perms, perm)) push(perms, perm);
+		}
+	}
+	return perms;
+}
+
+function _getInfos() {
+	var infos = [];
+	for (var leek in _getLeeks()) {
+		infos[leek] = [getLife(leek), getAbsoluteShield(leek), getRelativeShield(leek)];
+	}
+	return infos;
+}
+
+function _pushUnique(@array, element) {
+	if (!inArray(array, element)) push(array, element);
+}
+
+function _pushAllUnique(@array, elements) {
+	for (var element in elements)
+	if (!inArray(array, element)) push(array, element);
+}
+
+function _getCombosTargets(@combos) {
+
+	var combosTargets = [];
+
+	var leeks = _getLeeks();
+	var myCell = getCell();
+	var mp = getMP();
+
+	for (var combo in combos) {
+
+		//debug("********");
+		//_debugCombos([combo]);
+
+		var items = [];
+		var targets = [];
+
+		// On va créer regarder toutes les cases ou on peut utiliser chaque item
+		for (var item_ in combo) {
+
+			var item = item_[0];
+			var area = _getArea(item);
+
+			//debug("Item : " + _getName(item) + ", area : " + area);
+			var itemTargets = [];
+			for (var leek in leeks) {
+				var cell = leek === getLeek() ? 1200 : getCell(leek);
+				_pushAllUnique(itemTargets, _getAreaCells(cell, area));
+			}
+			//debug("Targets : " + targets);
+			//mark(targets, COLOR_RED);
+			push(items, item);
+			push(targets, itemTargets);
+		}
+
+		// On va construire les hits (couple item × cell) qui sont possibles et pas délirants
+		// Ici il faut filter les (item × cell) impossibles à garder au max.
+		var hits = [];
+		for (var i: var item in items) {
+			var r = [];
+			var range = _getMaxRange(item);
+			var type = _getItemType(item);
+			var area = _getArea(item);
+
+			for (var target in targets[i]) {
+
+				// On regarde si on peut utiliser cet item sur cette case !
+				if (getCellDistance(myCell, target) > range + mp) continue;
+
+				// C'est une attque purée et aucun ennemi n'est dedans...
+				if (type == ITEM_TYPE_BAD and not _areaHaveEnemies(target, area)) continue;
+
+				// C'est un soin ou un boost et il n'y a pas d'allié dans la zone...
+				if (type == ITEM_TYPE_GOOD and not _areaCanHaveAllies(target, area, getCell(), getMP())) continue;
+
+				push(r, [item, target]);
+			}
+
+			if (count(r) > 0) push(hits, r);
+		}
+
+		// On multiplie tous les hits possibles du combo
+		// Si on a 3 items avec deux possibilités de coup, ça va donner 2^3 possibilités pour le combo
+		// que l'on ajoute dans le tableau global
+		//combosTargets += _mulArrays(hits);
+		if (count(hits) > 0) _debugCombos(hits);
+	}
+
+	return combosTargets;
+}
+
+function _areaHaveEnemies(target, area) {
+
+	for (var cell in _getAreaCells(target, area)) {
+		var leek = getLeekOnCell(cell);
+		if (leek != -1 and not isAlly(leek)) return true;
+	}
+	return false;
+}
+
+function _areaCanHaveAllies(target, area, myCell, myMP) {
+
+	for (var cell in _getAreaCells(target, area)) {
+		var leek = getLeekOnCell(cell);
+		if (leek != -1 and isAlly(leek)) return true;
+		if (getCellDistance(myCell, cell) <= myMP) return true;
+	}
+	return false;
+}
+
+function _filterComboTargets(@combos) {
+
+	var interestingCombos = [];
+
+	var leeks = _getLeeks();
+
+	for (var combo in combos) {
+
+		var leeksInfos = [];
+
+		for (var leek in leeks) {
+			leeksInfos[leek] = ['life': getLife(leek), 'max_life': getTotalLife(leek), 'abs_shield': getAbsoluteShield(leek), 'rel_shield': getRelativeShield(leek)];
+		}
+
+		var effect = 0;
+
+		for (var hit in combo) {
+
+			var item = hit[0];
+			var target = hit[1];
+			var area = _getArea(item);
+			var type = _getItemType(item);
+
+			for (var cell_ in _getAreaCoefCells(target, area)) {
+
+				var cell = cell_[0];
+				var coef = cell_[1];
+
+				var leek = getLeekOnCell(cell[0]);
+				if (leek == null) continue;
+
+				var mul = isAlly(leek) ? -1 : 1;
+
+				effect += _getItemEffectOnLeek(item, leek, coef, leeksInfos[leek]) * mul;
+			}
+		}
+
+		if (effect > 0) push(interestingCombos, combo);
+	}
+
+	return interestingCombos;
+}
+
+function _getItemTargets(item, target) {
+	return isWeapon(item) ? getWeaponTargets(item, target) : getChipTargets(item, target);
+}
+
+function _specialMulArrays(@array1, @array2) {
+	var mul = [];
+	for (var i: var e1 in array1) {
+		for (var e2 in array2[i]) {
+			push(mul, [e1, e2]);
+		}
+	}
+	return mul;
+}
+
+function _mulTwoArrays(@array1, @array2) {
+	var mul = [];
+	for (var e1 in array1) {
+		for (var e2 in array2) {
+			push(mul, [e1, e2]);
+		}
+	}
+	return mul;
+}
+
+function _mulArrays(@arrays) {
+
+	if (count(arrays) == 0) return [];
+
+	var aux = function(stack, new) {
+
+			var res = [];
+			for (var n in new)
+			for (var e in stack)
+			push(res, e + [n]);
+
+			return res;
+		};
+
+	var res = arrayMap(shift(arrays), function(e) {
+		return [e];
+	});
+	for (var array in arrays)
+	res = aux(res, array);
+
+	return res;
+}
+
+function _getAreaCells(center, area) {
+
+	var offset = center == 1200 ? (1200 - 306) : 0;
+
+	var x = getCellX(center - offset);
+	var y = getCellY(center - offset);
+
+	var cells = [];
+
+	var pushIfNotNull = function(cell) {
+			if (cell != null) push(cells, cell);
+		};
+
+	for (var cell in AREA_MASKS[area]) {
+		pushIfNotNull(getCellFromXY(x + cell[0], y + cell[1]) + offset);
+	}
+
+	return cells;
+}
+
+/*
+ * Renvoie la liste des cellules sous la forme [cell, coef]
+ */
+function _getAreaCoefCells(center, area) {
+
+	var x = getCellX(center);
+	var y = getCellY(center);
+
+	var cells = [];
+
+	var pushIfNotNull = function(cell) {
+			if (cell != null) push(cells, cell);
+		};
+
+	for (var cell in AREA_MASKS[area]) {
+		pushIfNotNull([getCellFromXY(x + cell[0], y + cell[1]), cell[2]]);
+	}
+
+	return cells;
+}
+
+
+function _getItems() {
+
+	var items = [];
+
+	var addItem = function(item) {
+			for (var i in items) if (i[0] == item[0]) return;
+
+			for (var i = 0; i < count(items); i++) {
+				if (items[i][1] < item[1]) {
+					insert(items, item, i);
+					return;
+				}
+			}
+			push(items, item);
+		};
+
+	var distances = [];
+	for (var leek in _getLeeks()) {
+		distances[leek] = getCellDistance(getCell(), getCell(leek));
+	}
+
+	for (var weapon in getWeapons()) {
+
+		var cost = getWeaponCost(weapon);
+		var supCost = (getWeapon() !== weapon) ? 1 : 0;
+
+		if (cost > getTP()) continue;
+		if (not _checkRange(weapon, distances)) continue;
+
+		addItem([weapon, cost + supCost, supCost, _getName(weapon)]);
+	}
+
+	for (var chip in getChips()) {
+
+		if (getCooldown(chip) > 0) continue;
+		var cost = getChipCost(chip);
+
+		if (cost > getTP()) continue;
+		//if (not _checkRange(chip, distances)) continue;
+		addItem([chip, cost, 0, _getName(chip)]);
+	}
+
+	return items;
+}
+
+/*
+ * Renvoie la liste des items utilisables avec leur cout en PT (et leur coup d'équipement pour les armes)
+ * Filtre les items utilisables et raisonnables
+ * Utilise partition() pour renvoyer tous les combos possibles avec ces items avec les PT actuels
+ */
+function _getCombos(items) {
+
+	return _partition(getTP(), 0, items, []);
+}
+          
+		
+function _checkRange(item, @distances) {
+	var minRange = _getMinRange(item);
+	var maxRange = _getMaxRange(item);
+	var type = _getItemType(item);
+	for (var leek: var distance in distances) {
+		var mp = leek == getLeek() ? 0 : min(5, getMP(leek));
+		var mul = isAlly(leek) ? 1 : -1;
+		if (maxRange + mp >= distance && minRange - mp <= distance && type * mul != -1) return true;
+	}
+	return false;
+}
+
+function _partition(n, si, @items, added) {
+
+	var combos = [];
+	for (var i = si; i < count(items); i++) {
+
+		var item = items[i];
+		var cost = item[1];
+
+		if (isWeapon(item[0]) && inArray(added, item)) cost--;
+
+		if (cost > n) continue;
+
+		if (isChip(item[0]) && getChipCooldown(item[0]) > 0 && inArray(added, item)) continue;
+
+		push(added, item);
+
+		var subs = _partition(n - cost, i, items, added);
+		if (count(subs) > 0) {
+			for (var sub in subs) push(combos, [
+				[item[0], cost]
+			] + sub);
+		} else {
+			push(combos, [
+				[item[0], cost]
+			]);
+		}
+	}
+	return combos;
+}              
+
+
+function _getCombosTree(items) {
+
+	var aux;
+	aux = function(branch, tp, added) {
+
+		for (var item in items) {
+
+			var itemID = item[0];
+			var cost = item[1];
+
+			if (isWeapon(item[0]) && inArray(added, item)) cost--;
+
+			if (cost > tp) continue;
+
+			if (isChip(itemID) && (getChipCooldown(itemID) > 0 or getChipCooldown(itemID) == -1) && inArray(added, itemID)) continue;
+
+			push(added, itemID);
+
+			push(branch[1], aux([
+				[itemID, cost],
+				[]
+			], tp - cost, added));
+		}
+		return branch;
+	};
+
+	return aux([null, []], getTP(), []);
+}
+
+function _debugCombos(combos) {
+
+	var cs = [];
+	for (var c in combos) {
+		var combo = [];
+		for (var i in c) push(combo, _getName(i[0]) + " " + i[1]);
+		push(cs, combo);
+	}
+	debug(join(cs, " "));
+}
+
+function _debugCombosTree(tree) {
+
+	if (EXTENDED_DEBUG) {
+		_debugCombosTreeExtended(tree);
+		return;
+	}
+
+	var aux;
+	aux = function(@string, branch, level) {
+		string += "[";
+		if (branch[0] != null) string += _getName(branch[0][0]) + ' ' + branch[0][1];
+		if (count(branch[1]) > 0) string += ' ';
+		for (var b in branch[1])
+		aux(string, b, level + 1);
+		string += "] ";
+		return string;
+	};
+
+	debug(aux("", tree, 0));
+}
+
+function _debugCombosTreeExtended(tree) {
+
+	var aux;
+	aux = function(branch, level) {
+		var indent = '';
+		for (var i = 0; i < max(0, level - 1); ++i) indent += '. . ';
+		if (branch[0] != null) debug(indent + ' ' + _getName(branch[0][0]) + ' (' + branch[0][1] + ')');
+		for (var b in branch[1])
+			aux(b, level + 1);
+	};
+
+	aux(tree, 0);
+}
+
+function _getName(item) {
+	return isWeapon(item) ? getWeaponName(item) : getChipName(item);
+}
+
+function _canUse(item, leek) {
+	return isWeapon(item) ? canUseWeapon(item, leek) : canUseChip(item, leek);
+}
+
+function _getCellToUse(item, leek) {
+	return isWeapon(item) ? getCellToUseWeapon(item, leek) : getCellToUseChip(item, leek);
+}
+
+function _getCellToUseOnCell(item, cell) {
+	return isWeapon(item) ? getCellToUseWeaponOnCell(item, cell) : getCellToUseChipOnCell(item, cell);
+}
+
+function _use(item, leek) {
+	isWeapon(item) ? useWeapon(leek) : useChip(item, leek);
+}
+
+function _useOnCell(item, cell) {
+	isWeapon(item) ? useWeaponOnCell(cell) : useChipOnCell(item, cell);
+}
+
+function _getMaxRange(item) {
+	return isWeapon(item) ? getWeaponMaxScope(item) : getChipMaxScope(item);
+}
+
+function _getMinRange(item) {
+	return isWeapon(item) ? getWeaponMinScope(item) : getChipMinScope(item);
+}
+
+function _getEffects(item) {
+	return isWeapon(item) ? getWeaponEffects(item) : getChipEffects(item);
+}
+
+function _getCost(item) {
+	return isWeapon(item) ? getWeaponCost(item) : getChipCost(item);
+}
+
+/*
+ * Renvoie l'effet que provoque l'utilisation de cet item
+ */
+function _getItemEffectOnLeek(item, leek, coef, @infos) {
+
+	var total = 0;
+	var me = leek === getLeek();
+
+	for (var effect in _getEffects(item)) {
+
+		var type = effect[0];
+		var mini = effect[1];
+		var maxi = effect[2];
+		var turns = effect[3];
+		var m = (mini + maxi) / 2;
+
+		var targets = effect[4];
+		var notCaster = targets & EFFECT_TARGET_NOT_CASTER;
+
+		if (me and notCaster) continue;
+
+		if (type === EFFECT_DAMAGE) {
+
+			var d = _computeRealDamage(m, getForce(), infos) * coef;
+			total -= d;
+			infos['life'] -= d;
+
+			if (infos['life'] <= 0) break;
+
+		} else if (type === EFFECT_HEAL) {
+
+			if (turns == 0) {
+				var d = _computeRealHeal(m, getWisdom(), infos) * coef;
+				total += d;
+				infos['life'] += d;
+			} else {
+				for (var _ = 0; _ < turns; _++) {
+					var d = _computeRealHeal(m, getWisdom(), infos) * coef;
+					total += d;
+				}
+			}
+		} else if (type === EFFECT_ABSOLUTE_SHIELD) {
+
+			var s = _computeRealAbsoluteShield(m, getResistance(), infos);
+			infos['abs_shield'] += s;
+			total += s;
+
+		} else if (type === EFFECT_RELATIVE_SHIELD) {
+
+			var s = _computeRealRelativeShield(m, getResistance(), infos);
+			infos['rel_shield'] += s;
+			total += m * 10;
+
+		} else if (type === EFFECT_BUFF_FORCE) {
+
+			//infos['force'] += m;
+			total += m * 2;
+
+		} else if (type === EFFECT_BUFF_MP) {
+
+			total += m * 50;
+
+		} else if (type === EFFECT_BUFF_TP) {
+
+			total += m * 100;
+
+		} else if (type === 12) { // Vita
+			var l = _computeRealVitaBoost(m, getWisdom(), infos);
+			infos['life'] += l;
+			infos['max_life'] += l;
+			total += l * 2;
+
+		} else if (type === EFFECT_DEBUFF) {
+
+			var libe = infos['abs_shield'] * 50 + infos['rel_shield'] * 10;
+			total -= libe;
+			infos['abs_shield'] = 0;
+			infos['rel_shield'] = 0;
+
+		} else if (type === 13) { // EFFECT_POISON
+			for (var _ = 0; _ < turns; _++) {
+				var d = _computeRealPoison(m, getForce(), infos) * coef;
+				total -= d; // Le poison est efficace mais de diminue pas de vie tout de suite
+			}
+		}
+	}
+
+	return total;
+}
+
+/*
+ * Renvoie l'efficacité théorique d'un item, (si on l'utilise)
+ */
+function _getItemTheoricalPower(item) {
+
+	var total = 0;
+
+	for (var effect in _getEffects(item)) {
+
+		var type = effect[0];
+		var mini = effect[1];
+		var maxi = effect[2];
+		var turns = effect[3];
+		var m = (mini + maxi) / 2;
+		var targets = effect[4];
+
+		if (type === EFFECT_DAMAGE) {
+
+			total -= m * (1 + getForce() / 100);
+
+		} else if (type === EFFECT_HEAL) {
+
+			if (turns == 0) {
+
+				total += m * (1 + getWisdom() / 100);
+			} else {
+				for (var _ = 0; _ < turns; _++) {
+					total += m * (1 + getWisdom() / 100);
+				}
+			}
+		} else if (type === EFFECT_ABSOLUTE_SHIELD) {
+
+			total += m * (1 + getResistance() / 100);
+
+		} else if (type === EFFECT_RELATIVE_SHIELD) {
+
+			total += m + (1 + getResistance() / 100) * 10;
+
+		} else if (type === EFFECT_BUFF_AGILITY) {
+
+			total += m * 2;
+
+		} else if (type === EFFECT_BUFF_FORCE) {
+
+			total += m * 2;
+
+		} else if (type === EFFECT_BUFF_MP) {
+
+			total += m * 50;
+
+		} else if (type === EFFECT_BUFF_TP) {
+
+			total += m * 100;
+
+		} else if (type === 12) { // Vita
+			total += m * (1 + getWisdom() / 100) * 2;
+
+		} else if (type === EFFECT_DEBUFF) {
+
+			total += 500;
+
+		} else if (type === EFFECT_POISON) { // EFFECT_POISON
+			for (var _ = 0; _ < turns; _++) {
+				total -= m * (1 + getForce() / 100);
+			}
+		}
+	}
+
+	return round(abs(total) / _getCost(item));
+}
+
+/*
+ * Retourne la liste des poireaux du combat, alliés et ennemis
+ *
+ * @return leeks : la liste de tous les poireaux
+ */
+
+function _getLeeks() {
+	var leeks = [];
+	pushAll(leeks, getAliveEnemies());
+	pushAll(leeks, getAliveAllies());
+	return leeks;
+}
+
+function _getOtherLeeks() {
+	var leeks = [];
+	pushAll(leeks, getAliveEnemies());
+	pushAll(leeks, getAliveAllies());
+	removeElement(leeks, getLeek());
+	return leeks;
+}
+
+function _analyse() {
+
+	__powers = [];
+	var maxPower = 0;
+	var maxLife = 0;
+
+	for (var e in _getLeeks()) {
+		var p = _leekPower(e);
+		__powers[e] = p;
+		if (p > maxPower) maxPower = p;
+		if (getLife(e) > maxLife) maxLife = getLife(e);
+	}
+
+	var priorities = [];
+	for (var e: var p in __powers) {
+		var priority = (p / maxPower) * (1 - getLife(e) / (2 * maxLife));
+		priorities[e] = priority;
+	}
+
+	assocSort(priorities, SORT_DESC);
+	return priorities;
+}
+
+function _getItemType(item) {
+	if (__itemTypes[item] == null) {
+		if (item == CHIP_LIBERATION) {
+			__itemTypes[item] = 0;
+		} else {
+			var types = [];
+			for (var effect in _getEffects(item)) {
+				var type = effect[0];
+				if (inArray([EFFECT_DAMAGE], type)) type = ITEM_TYPE_BAD;
+				else type = ITEM_TYPE_GOOD;
+				push(types, type);
+			}
+			if (abs(sum(types)) == count(types)) __itemTypes[item] = signum(types[0]);
+			else __itemTypes[item] = 0;
+		}
+	}
+	return __itemTypes[item];
+}
+
+/*
+ * Calcule les dégâts réels en prenant en compte
+ * la force et les boucliers de la cible.
+ *
+ * @param leek : la cible
+ * @param damage : le dégât de base
+ * @return d : les dégâts réels
+ */
+function _computeRealDamage(damage, force, @infos) {
+
+	var d = damage * (1 + force / 100);
+	d *= (1 - infos['rel_shield'] / 100);
+	d -= infos['abs_shield'];
+	return min(infos['life'], max(0, d));
+}
+
+/*
+ * Calcule les dégats du poison
+ */
+function _computeRealPoison(poison, force, @infos) {
+
+	var d = poison * (1 + force / 100);
+	return min(infos['life'], max(0, d));
+}
+
+/*
+ * Calcule les soins réels en prenant en compte
+ * l'agilité du lanceur.
+ *
+ * @param heal : le soin de base
+ * @return h : les soins réels
+ */
+function _computeRealHeal(heal, wisdom, @infos) {
+
+	if (infos['life'] == 0) return 0;
+	var h = heal * (1 + wisdom / 100);
+	return min(infos['max_life'] - infos['life'], h);
+}
+
+function _computeRealAbsoluteShield(shield, resistance, @infos) {
+
+	return round(shield * (1 + resistance / 100));
+}
+
+function _computeRealRelativeShield(shield, resistance, @infos) {
+
+	return round(shield * (1 + resistance / 100));
+}
+
+function _computeRealVitaBoost(boost, wisdom, @infos) {
+	return boost * (1 + wisdom / 100);
+}
+
+/*
+ * Donne la puissance d'un poireau, dès le premier tour du combat.
+ * Paramètres pris en compte : 
+ *  - vie, force, agilité, pt, pm
+ *  - armes et puces équipées (TODO)
+ */
+function _leekPower(leek) {
+	var power = round((getLevel(leek) ** 3) / 1000);
+	if (isSummon(leek)) power /= 3;
+	return power;
+}
+
+function _getLeekItems(leek) {
+	var items = getChips(leek);
+	pushAll(items, getWeapons(leek));
+	return items;
+}
+
+function _getRoughEffect(item, leek, ally) {
+	var effect = 0;
+	for (var e in _getEffects(item)) {
+		var type = e[0];
+		var mini = e[1];
+		var maxi = e[2];
+		var avg = (mini + maxi) / 2;
+		if (!ally and type == EFFECT_DAMAGE) {
+			effect -= avg * (1 + getStrength(leek) / 100);
+		} else if (ally and type == EFFECT_HEAL) {
+			effect += avg * (1 + getWisdom(leek) / 100);
+		}
+	}
+	return effect;
+}
+
+function _getLeekItemsAndRanges(leek, ally) {
+	var items = [];
+
+	for (var chip in getChips(leek)) {
+		if (getCooldown(chip, leek) == 0) {
+			var effect = _getRoughEffect(chip, leek, ally);
+			if (effect != 0) push(items, [chip, getChipMinScope(chip), getChipMaxScope(chip), isInlineChip(chip), effect]);
+		}
+	}
+
+	for (var weapon in getWeapons(leek)) {
+		var effect = _getRoughEffect(weapon, leek, ally);
+		if (effect != 0) push(items, [weapon, getWeaponMinScope(weapon), getWeaponMaxScope(weapon), isInlineWeapon(weapon), effect]);
+	}
+	return items;
+}
+
+function _getReachableCells(cell, mp) {
+
+	if (__reachCache[cell * 100 + mp] != null) return __reachCache[cell * 100 + mp];
+
+	var cells = [cell];
+	var newCells = [cell];
+	for (var i = 0; i < mp; ++i) {
+		newCells = _grow(cells, newCells);
+		pushAll(cells, newCells);
+	}
+	__reachCache[cell * 100 + mp] = cells;
+	return cells;
+}
+
+function _getMaxReachableCells(cell, mp) {
+	var cells = [cell];
+	var newCells = [cell];
+	for (var i = 0; i < mp; ++i) {
+		newCells = _grow(cells, newCells);
+		pushAll(cells, newCells);
+	}
+	return newCells;
+}
+
+function _grow(@allCells, @cells) {
+	var newCells = [];
+	for (var cell in cells) {
+		var c1 = cell + 17;
+		if (!inArray(allCells, c1) && !inArray(newCells, c1) && !isObstacle(c1) && cell % 35 != 0 && cell < 595) push(newCells, c1);
+		var c2 = cell + 18;
+		if (!inArray(allCells, c2) && !inArray(newCells, c2) && !isObstacle(c2) && cell % 35 != 17 && cell < 595) push(newCells, c2);
+		var c3 = cell - 17;
+		if (!inArray(allCells, c3) && !inArray(newCells, c3) && !isObstacle(c3) && cell % 35 != 17 && cell > 17) push(newCells, c3);
+		var c4 = cell - 18;
+		if (!inArray(allCells, c4) && !inArray(newCells, c4) && !isObstacle(c4) && cell % 35 != 0 && cell > 17) push(newCells, c4);
+	}
+	return newCells;
+}
+
+function _debugMap(array) {
+	var maxi = 1;
+	var mini = -1;
+	for (var c: var v in array) {
+		if (v > maxi) maxi = v;
+		if (v < mini) mini = v;
+	}
+	for (var c: var v in array) {
+		if (v < 0) {
+			var red = max(0, (v / mini) * 255);
+			mark(c, getColor(255, 255 - red, 255 - red));
+		} else if (v > 0) {
+			var green = max(0, (v / maxi) * 255);
+			mark(c, getColor(255 - green, 255, 255 - green));
+		}
+	}
+}
+
+function debugLeekArray(name, array) {
+	var r = [];
+	for (var leek: var value in array) {
+		push(r, getName(leek) + " : " + value);
+	}
+	//debug(name + " : [" + join(r, ", ") + "]");
+}
+
+function _comboToString(combo) {
+	var string = "[Score : " + combo[0] + ", ";
+	for (var item in combo[1]) string += _getName(item[0]) + " on " + item[1] + " from " + item[2] + " (" + item[3] + ") ";
+	return string + " finish cell : " + combo[2] + ", remaining mps : " + combo[3] + "]";
+}
+
+function _moreDebug(obj) {
+	if (EXTENDED_DEBUG) debug(obj);
+}
+
+function _instru() {
+	//debug('Opérations : ' + (getOperations() - __instru) + " (total : " + getOperations() + ")");
+	__instru = getOperations();
+}
+
+_main();

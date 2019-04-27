@@ -1,0 +1,5 @@
+debug("start");
+
+setWeapon(WEAPON_LASER);
+
+var enemy = getNearestEnemy();
