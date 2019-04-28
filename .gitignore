@@ -1,0 +1,4 @@
+leekscript.jar
+*.class
+/ai/*.java
+/fight.json
