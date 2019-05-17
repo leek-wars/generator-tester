@@ -4,12 +4,21 @@ import os
 import time
 import hashlib
 import json
+import sys
 
 GENERATOR_V1 = 'java -jar ../generator-v1/leekscript.jar '
 GENERATOR_V2 = '../generator/build/leek-wars-generator '
 
 def main():
-	print("~~ Generator tester " + color.BLUE + color.BOLD + "main mode" + color.END + " ~~")
+	if len(sys.argv) > 1:
+		print("~~ Generator tester " + color.BLUE + color.BOLD + "single scenario" + color.END + " ~~")
+		arg = sys.argv[1]
+		run_scenario(arg)
+	else:
+		print("~~ Generator tester " + color.BLUE + color.BOLD + "main mode" + color.END + " ~~")
+		run_all()
+
+def run_all():
 	scenarios = [
 		"001_no_ai.json",
 		"002_basic.json",
@@ -20,21 +29,20 @@ def main():
 	print(color.BOLD + str(len(scenarios)) + " scenarios to run..." + color.END)
 	success = 0
 	for scenario in scenarios:
-		if run_scenario(scenario):
+		if run_scenario('scenario/' + scenario):
 			success = success + 1
 	print(color.BOLD + "Total: [" + str(success) + "/" + str(len(scenarios)) + "]" + color.END)
 
 def run_scenario(scenario):
-	result1, time1, hash1 = run(GENERATOR_V1 + 'scenario/' + scenario)
-	result2, time2, hash2 = run(GENERATOR_V2 + 'scenario/' + scenario)
+	result1, time1, hash1 = run(GENERATOR_V1 + scenario)
+	result2, time2, hash2 = run(GENERATOR_V2 + scenario)
 	if (hash1 != hash2):
-		print(color.BOLD + "Run scenario [" + scenario + "]" + color.END)
+		print(color.RED + color.BOLD + '[ERR] ' + color.END + "Scenario [" + color.BOLD + scenario + color.END + "]")
 		print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
 		print("V2: " + format_time(time2) + ", " + str(len(result2)) + " bytes, " + color.GREY + hash2 + color.END)
 		analyse(result1, result2)
-		print(color.RED + color.BOLD + '[FAIL!]' + color.END)
 	else:
-		print("Scenario [" + color.BOLD + scenario + color.END + "] " + color.GREEN + color.BOLD + "[OK] " + color.END + str(len(result1)) + " bytes " + color.GREY + hash1 + color.END)
+		print(color.GREEN + color.BOLD + "[OK] " + color.END + "Scenario [" + color.BOLD + scenario + color.END + "] " + str(len(result1)) + " bytes " + color.GREY + hash1 + color.END)
 	return hash1 == hash2
 
 def analyse(result1, result2):
