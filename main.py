@@ -14,7 +14,7 @@ def main():
 	# run_scenario("fight_v1.json")
 
 def run_scenario(scenario):
-	print("Run scenario [" + scenario + "]")
+	print(color.BOLD + "Run scenario [" + scenario + "]" + color.END)
 	result1, time1, hash1 = run(GENERATOR_V1 + 'scenario/' + scenario)
 	result2, time2, hash2 = run(GENERATOR_V2 + 'scenario/' + scenario)
 	
@@ -25,7 +25,7 @@ def run_scenario(scenario):
 
 	print("V1: " + format_time(time1) + " " + hash1)
 	print("V2: " + format_time(time2) + " " + hash2)
-	print('OK' if hash1 == hash2 else 'FAIL')
+	print(color.GREEN + color.BOLD + '[OK]' + color.END if hash1 == hash2 else color.RED + color.BOLD + '[FAIL!]' + color.END)
 
 def analyse(result1, result2):
 	parsed1 = dict()
@@ -69,5 +69,17 @@ def run(command):
 def format_time(time):
 	return str(round(time * 10000) / 10) + 'ms'
 
+class color:
+	PURPLE = '\033[95m'
+	CYAN = '\033[96m'
+	DARKCYAN = '\033[36m'
+	BLUE = '\033[94m'
+	GREEN = '\033[92m'
+	YELLOW = '\033[93m'
+	RED = '\033[91m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
+	END = '\033[0m'
+		
 if __name__ == '__main__':
     main()
