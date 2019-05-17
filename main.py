@@ -62,7 +62,9 @@ def run(command):
 	result, err = proc.communicate()
 	end = time.time()
 	h = hashlib.new('sha1')
-	h.update(result.split("\n")[-2])
+	if result:
+		result = result.split("\n")[-2]
+	h.update(result)
 	hash = h.hexdigest()
 	return (result, end - start, hash)
 
