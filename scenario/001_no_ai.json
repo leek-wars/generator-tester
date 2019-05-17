@@ -8,7 +8,6 @@
 				"frequency": 10000,
 				"tp": 12,
 				"mp": 6,
-				"cell": 123,
 				"weapons": [37, 47],
 				"chips": [29],
 				"skin": 5
@@ -23,21 +22,10 @@
 				"frequency": 100,
 				"tp": 50,
 				"mp": 6,
-				"cell": 301,
 				"weapons": [37, 47],
 				"chips": [29],
 				"skin": 7
 			}
 		]
-	],
-	"map": {
-		"width": 17,
-		"height": 17,
-		"type": 3,
-		"obstacles": [
-			123, 54, 212, 561, 231, 678, 122, 545, 753, 321, 565, 89
-		]
-	},
-	"max_turns": 64,
-	"max_operations_per_entity": 20000000
+	]
 }
