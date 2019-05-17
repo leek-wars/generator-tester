@@ -15,6 +15,7 @@ def main():
 		"002_basic.json",
 		"003_simple.json",
 		"004_logs.json",
+		"005_max_turns.json",
 	]
 	print(color.BOLD + str(len(scenarios)) + " scenarios to run..." + color.END)
 	success = 0

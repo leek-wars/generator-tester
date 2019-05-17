@@ -1,8 +1,6 @@
 {	"teams": [
 		[
-			{	"ai": "ai/004_logs.leek",
-				"v1": true,
-				"name": "Patrick",
+			{	"name": "Patrick",
 				"farmer": 555,
 				"level": 301,
 				"life": 5000,
@@ -17,9 +15,7 @@
 			}
 		],
 		[
-			{	"ai": "ai/004_logs.leek",
-				"v1": true,
-				"name": "Boss",
+			{	"name": "Boss",
 				"farmer": 777,
 				"level": 1000,
 				"life": 10000,
@@ -33,5 +29,6 @@
 				"skin": 5
 			}
 		]
-	]
+	],
+	"max_turns": 5
 }
