@@ -14,6 +14,7 @@ def main():
 		"001_no_ai.json",
 		"002_basic.json",
 		"003_simple.json",
+		"004_logs.json",
 	]
 	print(color.BOLD + str(len(scenarios)) + " scenarios to run..." + color.END)
 	success = 0
