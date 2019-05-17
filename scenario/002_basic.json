@@ -1,6 +1,6 @@
 {	"teams": [
 		[
-			{	"ai": "ai/v1/002_basic.leek",
+			{	"ai": "ai/002_basic.leek",
 				"v1": true,
 				"name": "Patrick",
 				"farmer": 1,
@@ -17,7 +17,7 @@
 			}
 		],
 		[
-			{	"ai": "ai/v1/002_basic.leek",
+			{	"ai": "ai/002_basic.leek",
 				"v1": true,
 				"name": "Boss",
 				"farmer": 2,
