@@ -31,12 +31,12 @@ def analyse(result1, result2):
 	parsed1 = dict()
 	parsed2 = dict()
 	try:
-		parsed1 = json.loads(result1.split("\n")[-2])
+		parsed1 = json.loads(result1)
 	except:
 		print("Failed to parse result from generator v1")
 		return
 	try:
-		parsed2 = json.loads(result2.split("\n")[-2])
+		parsed2 = json.loads(result2)
 	except:
 		print("Failed to parse result from generator v2 :")
 		print(result2)
