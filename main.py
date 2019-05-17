@@ -31,8 +31,8 @@ def run_scenario(scenario):
 		# print("Result 2 : \n" + result2)
 		analyse(result1, result2)
 
-	print("V1: " + format_time(time1) + " " + color.GREY + hash1 + color.END)
-	print("V2: " + format_time(time2) + " " + color.GREY + hash2 + color.END)
+	print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
+	print("V2: " + format_time(time2) + ", " + str(len(result2)) + " bytes, " + color.GREY + hash2 + color.END)
 	print(color.GREEN + color.BOLD + '[OK]' + color.END if hash1 == hash2 else color.RED + color.BOLD + '[FAIL!]' + color.END)
 	return hash1 == hash2
 
