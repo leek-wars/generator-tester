@@ -1,0 +1,11 @@
+if (getWeapon() == null) {
+	setWeapon(WEAPON_PISTOL);
+}
+
+var enemy = getNearestEnemy();
+
+moveToward(enemy);
+
+useWeapon(enemy);
+useWeapon(enemy);
+useWeapon(enemy);
