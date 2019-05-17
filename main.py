@@ -10,7 +10,7 @@ GENERATOR_V2 = '../generator/build/leek-wars-generator '
 
 def main():
 	run_scenario("001_no_ai.json")
-	# run_scenario("scenario1.json")
+	run_scenario("002_basic.json")
 	# run_scenario("fight_v1.json")
 
 def run_scenario(scenario):
@@ -62,6 +62,7 @@ def run(command):
 	result, err = proc.communicate()
 	end = time.time()
 	h = hashlib.new('sha1')
+	# print("raw result " + result)
 	if result:
 		result = result.split("\n")[-2]
 	h.update(result)
