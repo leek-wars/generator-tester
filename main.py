@@ -58,8 +58,8 @@ def analyse(result1, result2):
 def compare(item, part1, part2):
 	if (part1[item] != part2[item]):
 		print(item + " is different")
-		print(item + " 1: " + str(part1[item]))
-		print(item + " 2: " + str(part2[item]))
+		print(color.BOLD + item + " 1: " + color.END + str(part1[item]))
+		print(color.BOLD + item + " 2: " + color.END + str(part2[item]))
 		return False
 	else:
 		print(item + " is OK")
