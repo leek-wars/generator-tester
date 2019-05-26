@@ -1,0 +1,125 @@
+debug('Tour n' + getTurn());
+
+if (getWeapon() === null) {
+	debug('Je prends le Double Gun');
+	setWeapon(WEAPON_SHOTGUN);	
+}
+
+function doBuffs () {
+	debug("J'applique mes buffs");
+	if (getLife() < getTotalLife() - 15) {
+		debug('Je me soigne');
+		useChip(CHIP_BANDAGE, getLeek());
+	}
+	if (getTurn() % 3 == 0) {
+		debug('Je mets mon casque');
+		useChip(CHIP_HELMET, getLeek());
+	}
+	debug('Fin de doBuffs');
+}
+
+// J'attaque !
+function doFight () {
+	debug("J'attaque !");
+	
+	var weaponIsUsed = true;
+	var chipIsUsed = true;
+
+	// if (isMelee(getNearestEnemy()) && getWeaponMinRange() > 1) {
+	// 	debug("Je bouge d'1 case");
+	// 	moveAwayFrom(getNearestEnemy(), 1);
+	// } else {
+		debug("J'avance");
+		moveToward(getNearestEnemy());
+	// }
+
+	while (getTP() >= getWeaponCost(getWeapon()) && weaponIsUsed) {
+		debug('Je tente de tirer');
+		
+		var use = useWeapon(getNearestEnemy());
+		debug('TP restant : ' + getTP());
+
+		if (use != USE_SUCCESS) {
+			debug("Je ne l'ai pas touché !");
+			weaponIsUsed = false;
+		} else {
+			debug("Je l'ai touché !");
+			weaponIsUsed = false;
+		}
+	}
+	
+	// while (getTP() >= getChipCost(CHIP_SPARK) && chipIsUsed) {
+	// 	debug('Je tente de lui crâmer la tronche');
+		
+	// 	var use = useChip(CHIP_SPARK, getNearestEnemy());
+	// 	debug('TP restant : ' + getTP());
+		
+	// 	if (use != USE_SUCCESS) {
+	// 		debug("Je ne l'ai pas crâmé !");
+	// 		chipIsUsed = false;
+	// 	} else {
+	// 		debug("Je l'ai crâmé !");
+	// 		chipIsUsed = false;
+	// 	}
+	// }
+
+	debug('Fin de doFight');
+}
+
+function isMelee (enemy) {
+	var myPos = getCell();
+	var enemyPos = getCell(enemy);
+	var meleePos = [-17, 17, -18, 18];
+	
+	if (inArray(meleePos, (myPos - enemyPos))) {
+		debug('Je suis au CàC !');
+		return true;
+	} else {
+		debug('Je ne suis pas au CàC !');
+		return false;
+	}
+}
+
+function getTotalDamageByWeapon () {
+	var aWeaponEffects = getWeaponEffects(getWeapon());
+	var iTotalDamageByWeapon = 0;
+	
+	// Pour chaque ligne de dégâts sur l'arme, je prends le jet mini
+	for (var i = 0; i < count(aWeaponEffects); i++) {
+		// Et je calcule les dégâts que je peux faire au total
+		// iTotalDamageByWeapon = iTotalDamageByWeapon + (aWeaponEffects[i][1] * (1 + getStrength() / 100));
+	}
+	return iTotalDamageByWeapon;
+}
+
+// Est-ce que je peux tuer mon adversaire ?
+function canIKillThisFuckingLeek (iLeek, iTotalDamages) {
+	var iAbsoluteShield = 0;
+	var iRelativeShield = 0;
+	var iFinalDamages = 0;
+	var multiplier = 0;
+	
+	// J'applique les résistances de l'adversaire : Dégâts finaux = (Dégâts de base) * (1 - Bouclier relatif / 100) - Bouclier absolu
+	iFinalDamages = iTotalDamages * (1 - iRelativeShield / 100) - iAbsoluteShield;
+	
+	// Je multiplie ces dégâts par le nombre de fois que je peux tirer
+	multiplier = floor((getTP() / getWeaponCost(getWeapon())));	
+	iFinalDamages = iFinalDamages * multiplier;
+	debug('Dégâts finaux : ' + iFinalDamages);
+	
+	// Si les dégâts finaux sont supérieurs ou égaux à sa vie restante, c'est que je peux le dézinguer en beauté
+	if (iFinalDamages >= getLife(iLeek)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+if (canIKillThisFuckingLeek(getNearestEnemy(), getTotalDamageByWeapon())) {
+	debug('Je peux le buter !');
+	doFight();
+} else {
+	debug('Je ne peux pas le buter !');
+	doBuffs();
+	doFight();
+}
