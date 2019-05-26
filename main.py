@@ -6,16 +6,24 @@ import hashlib
 import json
 import sys
 
-GENERATOR_V1 = 'java -jar ../generator-v1/leekscript.jar '
-GENERATOR_V2 = '../generator/build/leek-wars-generator '
+GENERATOR_V1 = 'java -jar ../generator-v1/leekscript.jar'
+GENERATOR_V2 = '../generator/build/leek-wars-generator'
+options = {}
 
 def main():
-	if len(sys.argv) > 1:
-		print("~~ Generator tester " + color.BLUE + color.BOLD + "single scenario" + color.END + " ~~")
-		arg = sys.argv[1]
-		run_scenario(arg)
+	scenario = None
+	for a in range(1, len(sys.argv)):
+		arg = sys.argv[a]
+		if arg.startswith('--'):
+			options[arg[2:]] = True
+		else:
+			scenario = arg
+
+	if scenario:
+		print("~~ Generator tester " + color.BLUE + color.BOLD + "single scenario" + color.END + " ~~ " + str(options))
+		run_scenario(scenario)
 	else:
-		print("~~ Generator tester " + color.BLUE + color.BOLD + "main mode" + color.END + " ~~")
+		print("~~ Generator tester " + color.BLUE + color.BOLD + "main mode" + color.END + " ~~ " + str(options))
 		run_all()
 
 def run_all():
@@ -35,8 +43,11 @@ def run_all():
 	print(color.BOLD + "Total: [" + str(success) + "/" + str(len(scenarios)) + "]" + color.END)
 
 def run_scenario(scenario):
-	result1, time1, hash1 = run(GENERATOR_V1 + scenario)
-	result2, time2, hash2 = run(GENERATOR_V2 + scenario)
+	result1, logs1, time1, hash1 = run(GENERATOR_V1, scenario)
+	result2, logs2, time2, hash2 = run(GENERATOR_V2, scenario)
+	if "logs" in options:
+		print(logs1)
+		print(logs2)
 	if (hash1 != hash2):
 		print(color.RED + color.BOLD + '[ERR] ' + color.END + "Scenario [" + color.BOLD + scenario + color.END + "]")
 		print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
@@ -77,18 +88,26 @@ def compare(item, part1, part2):
 		print(item + " is OK")
 		return True
 
-def run(command):
+def run(generator, scenario):
 	start = time.time()
+	command = " ".join([
+		generator,
+		("--logs" if "logs" in options else ""),
+		("--nocache" if "nocache" in options else ""),
+		scenario
+	])
 	proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
 	result, err = proc.communicate()
 	end = time.time()
 	h = hashlib.new('sha1')
-	# print("raw result " + result)
+	logs = ""
 	if result:
-		result = result.split("\n")[-2]
+		lines = result.split("\n")
+		result = lines[-2]
+		logs = "\n".join(lines[0:-2])
 	h.update(result)
 	hash = h.hexdigest()
-	return (result, end - start, hash)
+	return (result, logs, end - start, hash)
 
 def format_time(time):
 	return str(round(time * 10000) / 10) + 'ms'
