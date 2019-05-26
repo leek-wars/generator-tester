@@ -43,6 +43,8 @@ def run_scenario(scenario):
 		analyze(result1, result2)
 	else:
 		print(color.GREEN + color.BOLD + "[OK] " + color.END + "Scenario [" + color.BOLD + scenario + color.END + "] " + str(len(result1)) + " bytes " + color.GREY + hash1 + color.END)
+		print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
+		print("V2: " + format_time(time2) + ", " + str(len(result2)) + " bytes, " + color.GREY + hash2 + color.END)
 	return hash1 == hash2
 
 def analyze(result1, result2):
