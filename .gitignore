@@ -3,3 +3,4 @@ leekscript.jar
 /ai/*.java
 /fight.json
 *.ll
+*.bc
