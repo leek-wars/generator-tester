@@ -45,15 +45,19 @@ def run_all():
 def run_scenario(scenario):
 	result1, logs1, time1, hash1 = run(GENERATOR_V1, scenario)
 	result2, logs2, time2, hash2 = run(GENERATOR_V2, scenario)
-	if "logs" in options:
-		print(logs1)
-		print(logs2)
 	if (hash1 != hash2):
+		if logs1:
+			print(logs1)
+		if logs2:
+			print(logs2)
 		print(color.RED + color.BOLD + '[ERR] ' + color.END + "Scenario [" + color.BOLD + scenario + color.END + "]")
 		print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
 		print("V2: " + format_time(time2) + ", " + str(len(result2)) + " bytes, " + color.GREY + hash2 + color.END)
 		analyze(result1, result2)
 	else:
+		if "logs" in options:
+			print(logs1)
+			print(logs2)
 		print(color.GREEN + color.BOLD + "[OK] " + color.END + "Scenario [" + color.BOLD + scenario + color.END + "] " + str(len(result1)) + " bytes " + color.GREY + hash1 + color.END)
 		print("V1: " + format_time(time1) + ", " + str(len(result1)) + " bytes, " + color.GREY + hash1 + color.END)
 		print("V2: " + format_time(time2) + ", " + str(len(result2)) + " bytes, " + color.GREY + hash2 + color.END)
