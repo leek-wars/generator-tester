@@ -34,6 +34,7 @@ def run_all():
 		"004_logs.json",
 		"005_max_turns.json",
 		"006_medium.json",
+		"007_quine.json",
 	]
 	print(color.BOLD + str(len(scenarios)) + " scenarios to run..." + color.END)
 	success = 0
