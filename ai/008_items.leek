@@ -1,0 +1,18 @@
+if (getWeapon() == null) {
+	setWeapon(getTurn() % 2 ? WEAPON_PISTOL : WEAPON_M_LASER);
+	debug([WEAPON_PISTOL, WEAPON_M_LASER]);
+}
+debug(getWeapons());
+debug(getChips());
+
+debug([getWeaponCost(), getWeaponMinRange(), getWeaponMaxRange(), getWeaponEffects()]);
+debug([getWeaponCost(-1), getWeaponMinRange(-1), getWeaponMaxRange(-1), getWeaponEffects(-1)]);
+
+var costs = [];
+for (var weapon in getWeapons()) {
+	push(costs, getWeaponCost(weapon));
+	push(costs, getWeaponMinRange(weapon));
+	push(costs, getWeaponMaxRange(weapon));
+}
+debug(costs);
+debug(getWeaponEffects(WEAPON_PISTOL));
