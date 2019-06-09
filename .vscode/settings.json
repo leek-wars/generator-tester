@@ -3,6 +3,7 @@
 		"fight.json": true,
 		"leekscript.jar": true,
 		"ai/*.java": true,
-		"ai/*.class": true
+		"ai/*.class": true,
+		"ai/*.bc": true
 	}
 }
